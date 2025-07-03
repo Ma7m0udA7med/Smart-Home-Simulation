@@ -1,0 +1,17 @@
+Soil Moisture Sensor
+# garden_moisture.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Garden_Moisture")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    moisture = random.randint(10, 50)  # Percentage
+    client.publish("garden/soil/moisture", moisture)
+    print(f"💧 Soil moisture: {moisture}%")
+    time.sleep(3600)  # Check hourly

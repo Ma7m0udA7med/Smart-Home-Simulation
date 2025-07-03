@@ -1,0 +1,25 @@
+Path Light Controller
+# garden_path_lights.py
+import paho.mqtt.client as mqtt
+from datetime import datetime
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    cmd = msg.payload.decode()
+    if cmd == "on":
+        hour = datetime.now().hour
+        brightness = 30 if 22 <= hour <= 6 else 70  # Late night dimming
+        print(f"💡 Path lights ON ({brightness}%)")
+    elif cmd == "off":
+        print("💡 Path lights OFF")
+    elif cmd.isdigit():
+        print(f"💡 Path lights at {cmd}%")
+
+client = mqtt.Client("Garden_PathLights")
+client.connect("1.0.0.2", 1883)
+client.subscribe("garden/path_lights")
+client.on_message = on_message
+print("Path light controller ready")
+client.loop_forever()

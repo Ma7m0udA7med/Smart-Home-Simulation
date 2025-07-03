@@ -1,0 +1,22 @@
+Security Light Controller
+# garden_lights.py
+import paho.mqtt.client as mqtt
+from datetime import datetime
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    cmd = msg.payload.decode()
+    if cmd == "on":
+        brightness = 30 if datetime.now().hour > 22 else 100  # Late night dimming
+        print(f"💡 Security lights ON ({brightness}%)")
+    elif cmd == "off":
+        print("💡 Lights OFF")
+
+client = mqtt.Client("Garden_Lights")
+client.connect("1.0.0.2", 1883)
+client.subscribe("garden/lights")
+client.on_message = on_message
+print("Light controller ready")
+client.loop_forever()

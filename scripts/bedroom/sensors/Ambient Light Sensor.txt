@@ -1,0 +1,16 @@
+# bedroom_light.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Bedroom_Light")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    lux = random.randint(0, 2000)  # 0-2000 lux range
+    client.publish("bedroom/light", lux)
+    print(f"🔆 Published light: {lux} lux")
+    time.sleep(20)

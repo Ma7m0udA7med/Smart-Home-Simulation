@@ -1,0 +1,14 @@
+# bedroom_thermostat.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    print(f"Thermostat set to: {msg.payload.decode()}°C")
+
+client = mqtt.Client("Bedroom_Thermostat")
+client.connect("1.0.0.2", 1883)
+client.subscribe("bedroom/thermostat")
+client.on_message = on_message
+client.loop_forever()

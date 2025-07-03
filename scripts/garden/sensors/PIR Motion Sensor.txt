@@ -1,0 +1,17 @@
+PIR Motion Sensor
+# garden_motion.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Garden_Motion")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    motion = "active" if random.random() > 0.7 else "inactive"  # 30% detection chance
+    client.publish("garden/motion", motion)
+    print(f"🦔 Motion detected: {motion}")
+    time.sleep(10)

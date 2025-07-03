@@ -1,0 +1,16 @@
+# hallway_motion.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Hallway_Motion")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    motion = "active" if random.random() > 0.4 else "inactive"  # 60% detection chance
+    client.publish("hallway/motion", motion)
+    print(f" Motion: {motion}")
+    time.sleep(8)  # Faster response than other rooms

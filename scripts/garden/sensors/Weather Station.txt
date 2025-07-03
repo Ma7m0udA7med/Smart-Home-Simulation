@@ -1,0 +1,24 @@
+# garden_weather.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+WEATHER_STATES = ["sunny", "cloudy", "rainy", "stormy"]
+
+client = mqtt.Client("Garden_Weather")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    weather = random.choice(WEATHER_STATES)
+    temp = round(random.uniform(5.0, 35.0), 1)
+    humidity = random.randint(30, 100)
+    
+    client.publish("garden/weather/condition", weather)
+    client.publish("garden/weather/temp", temp)
+    client.publish("garden/weather/humidity", humidity)
+    
+    print(f"🌤️ Weather: {weather}, {temp}°C, {humidity}%")
+    time.sleep(300)  # Update every 5 minutes

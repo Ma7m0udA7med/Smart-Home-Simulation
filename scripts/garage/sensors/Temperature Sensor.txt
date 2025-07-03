@@ -1,0 +1,16 @@
+# garage_temp.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Garage_Temp")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    temp = round(random.uniform(-10.0, 50.0), 1)  # Extreme garage range
+    client.publish("garage/temperature", temp)
+    print(f"🌡️ Temperature: {temp}°C")
+    time.sleep(60)

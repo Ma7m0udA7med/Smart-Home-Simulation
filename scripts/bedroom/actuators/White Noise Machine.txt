@@ -1,0 +1,23 @@
+# bedroom_noise_machine.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+SOUNDS = ["rain", "ocean", "whitenoise", "fan"]
+
+def on_message(client, userdata, msg):
+    cmd = msg.payload.decode()
+    if cmd == "on":
+        print("🔊 Playing default white noise")
+    elif cmd in SOUNDS:
+        print(f"🔊 Playing {cmd} sound")
+    elif cmd == "off":
+        print("🔇 Machine off")
+
+client = mqtt.Client("Bedroom_NoiseMachine")
+client.connect("1.0.0.2", 1883)
+client.subscribe("bedroom/noise_machine")
+client.on_message = on_message
+print("Noise machine ready")
+client.loop_forever()

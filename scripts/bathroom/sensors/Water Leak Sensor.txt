@@ -1,0 +1,17 @@
+# bathroom_water.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Bathroom_Water")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    leak = "true" if random.random() < 0.02 else "false"  # 2% leak chance
+    client.publish("bathroom/water_leak", leak)
+    if leak == "true":
+        print("🚨 WATER LEAK DETECTED!")
+    time.sleep(60)

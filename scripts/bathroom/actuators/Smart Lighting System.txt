@@ -1,0 +1,22 @@
+# bathroom_lights.py
+import paho.mqtt.client as mqtt
+from datetime import datetime
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    cmd = msg.payload.decode()
+    hour = datetime.now().hour
+    
+    if cmd == "on":
+        brightness = 30 if 22 <= hour <= 6 else 100  # Night dimming
+        print(f"💡 Lights ON ({brightness}%)")
+    elif cmd == "off":
+        print("💡 Lights OFF")
+
+client = mqtt.Client("Bathroom_Lights")
+client.connect("1.0.0.2", 1883)
+client.subscribe("bathroom/lights")
+client.on_message = on_message
+client.loop_forever()

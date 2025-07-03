@@ -1,0 +1,21 @@
+# garage_lights.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    cmd = msg.payload.decode()
+    if cmd == "on":
+        print("💡 Garage lights ON (100%)")
+    elif cmd == "dim":
+        print("💡 Garage lights (30% night mode)")
+    elif cmd == "off":
+        print("💡 Lights OFF")
+
+client = mqtt.Client("Garage_Lights")
+client.connect("1.0.0.2", 1883)
+client.subscribe("garage/lights")
+client.on_message = on_message
+print("Light controller ready")
+client.loop_forever()

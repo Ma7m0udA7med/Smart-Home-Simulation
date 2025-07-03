@@ -1,0 +1,28 @@
+# garage_charger.py
+import paho.mqtt.client as mqtt
+from datetime import datetime
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    cmd = msg.payload.decode()
+    hour = datetime.now().hour
+    
+    if cmd == "on":
+        if 23 <= hour <= 6:  # Off-peak hours
+            print("🔋 Charging at full speed (off-peak)")
+        else:
+            print("🔌 Slow charging (peak hours)")
+    elif cmd == "off":
+        print("⚡ Charging stopped")
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Garage_Charger")
+client.connect("1.0.0.2", 1883)
+client.subscribe("garage/charger")
+client.on_message = on_message
+print("EV charger ready")
+client.loop_forever()

@@ -1,0 +1,16 @@
+# bedroom_temp.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Bedroom_Temp")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    temp = round(random.uniform(16.0, 28.0), 1)  # Wide range for testing
+    client.publish("bedroom/temperature", temp)
+    print(f"🌡️ Published temperature: {temp}°C")
+    time.sleep(30)

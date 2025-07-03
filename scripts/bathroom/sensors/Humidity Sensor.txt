@@ -1,0 +1,16 @@
+# bathroom_humidity.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Bathroom_Humidity")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    humidity = random.randint(30, 95)  # Realistic bathroom range
+    client.publish("bathroom/humidity", humidity)
+    print(f" Humidity: {humidity}%")
+    time.sleep(30)

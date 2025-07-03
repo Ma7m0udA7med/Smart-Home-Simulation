@@ -1,0 +1,20 @@
+# hallway_lock.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    cmd = msg.payload.decode()
+    if cmd == "lock":
+        print("🔒 Door locked")
+    elif cmd == "unlock":
+        print("🔓 Door unlocked")
+    elif cmd == "secure":
+        print("🔐 Deadbolt engaged")
+
+client = mqtt.Client("Hallway_Lock")
+client.connect("1.0.0.2", 1883)
+client.subscribe("hallway/lock")
+client.on_message = on_message
+client.loop_forever()

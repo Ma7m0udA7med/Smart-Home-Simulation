@@ -1,0 +1,19 @@
+# garage_air.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Garage_Air")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    co_level = random.randint(0, 50)  # 0-50ppm CO
+    voc_level = random.randint(0, 500)  # 0-500ppb VOC
+    client.publish("garage/air/co", co_level)
+    client.publish("garage/air/voc", voc_level)
+    if co_level > 25:
+        print(f"⚠️ DANGER: CO level {co_level}ppm")
+    time.sleep(45)

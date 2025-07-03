@@ -1,0 +1,16 @@
+# bathroom_floor_heat.py
+import paho.mqtt.client as mqtt
+from datetime import datetime
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    temp = float(msg.payload)
+    print(f"🔥 Floor heating to {temp}°C")
+
+client = mqtt.Client("Bathroom_FloorHeat")
+client.connect("1.0.0.2", 1883)
+client.subscribe("bathroom/floor_heat")
+client.on_message = on_message
+client.loop_forever()

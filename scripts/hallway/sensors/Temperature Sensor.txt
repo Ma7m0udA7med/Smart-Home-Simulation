@@ -1,0 +1,17 @@
+# hallway_temp.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Hallway_Temp")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    temp = round(random.uniform(15.0, 45.0), 1)  # Wide range for closet
+    client.publish("hallway/temperature", temp)
+    if temp > 40:
+        print(f"⚠️ Overheat warning: {temp}°C")
+    time.sleep(60)

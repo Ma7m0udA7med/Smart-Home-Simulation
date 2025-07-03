@@ -1,0 +1,21 @@
+# bedroom_blinds.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    cmd = msg.payload.decode()
+    if cmd == "open":
+        print("🪟 Blinds opening (100%)")
+    elif cmd == "close":
+        print("🪟 Blinds closed (0%)")
+    elif "%" in cmd:
+        print(f"🪟 Blinds set to {cmd}")
+
+client = mqtt.Client("Bedroom_Blinds")
+client.connect("1.0.0.2", 1883)
+client.subscribe("bedroom/blinds")
+client.on_message = on_message
+print("Blinds controller ready")
+client.loop_forever()

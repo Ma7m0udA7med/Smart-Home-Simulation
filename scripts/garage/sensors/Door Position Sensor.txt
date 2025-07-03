@@ -1,0 +1,16 @@
+# garage_door.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Garage_Door_Sensor")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    position = random.choice(["open", "closed", "partially_open"])
+    client.publish("garage/door", position)
+    print(f" Door: {position}")
+    time.sleep(20)

@@ -1,0 +1,18 @@
+Rain Sensor
+# garden_rain.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Garden_Rain")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    raining = "true" if random.random() < 0.2 else "false"  # 20% chance
+    client.publish("garden/rain", raining)
+    if raining == "true":
+        print("🌧️ Rain detected - skipping irrigation")
+    time.sleep(1800)  # Check every 30 mins

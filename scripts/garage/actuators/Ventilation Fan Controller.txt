@@ -1,0 +1,21 @@
+# garage_fan.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    speed = msg.payload.decode()
+    if speed == "high":
+        print("💨 Ventilation fan HIGH speed")
+    elif speed == "low":
+        print("💨 Ventilation fan LOW speed")
+    elif speed == "off":
+        print("💨 Fan OFF")
+
+client = mqtt.Client("Garage_Fan")
+client.connect("1.0.0.2", 1883)
+client.subscribe("garage/fan")
+client.on_message = on_message
+print("Fan controller ready")
+client.loop_forever()

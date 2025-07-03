@@ -1,0 +1,17 @@
+# hallway_door.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Hallway_Door")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    state = "open" if random.random() > 0.9 else "closed"  # 10% open chance
+    client.publish("hallway/door", state)
+    if state == "open":
+        print("🚪 Front door opened!")
+    time.sleep(15)

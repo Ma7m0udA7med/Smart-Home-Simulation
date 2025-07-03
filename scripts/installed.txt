@@ -1,0 +1,18 @@
+install emqx 
+curl -s https://assets.emqx.com/scripts/install-emqx-deb.sh | sudo bash
+sudo apt-get install emqx
+emqx foregroung 
+
+install mqttx 
+ curl -LO https://www.emqx.com/zh/downloads/MQTTX/v1.8.0/mqttx-cli-linux-x64
+ sudo install ./mqttx-cli-linux-x64 /usr/local/bin/mqttx
+
+Install Python 3 and pip
+sudo apt update
+sudo apt install python3 python3-pip -y
+
+install paho-mqtt
+pip3 install paho-mqtt
+
+install screen 
+sudo apt install screen -y

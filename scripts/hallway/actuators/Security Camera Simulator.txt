@@ -1,0 +1,16 @@
+# hallway_camera.py
+import paho.mqtt.client as mqtt
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Hallway_Camera")
+client.connect("1.0.0.2", 1883)	
+
+while True:
+    # Simulate occasional motion capture
+    if random.random() > 0.8:
+        client.publish("hallway/camera", "motion_captured.jpg")
+        print("📸 Captured motion image")
+    time.sleep(30)

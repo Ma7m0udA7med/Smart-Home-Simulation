@@ -1,0 +1,22 @@
+# hallway_siren.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+SIREN_MODES = {
+    "burglar": "🔊 110dB pulsed alarm",
+    "fire": "🔊 Continuous 120dB tone",
+    "stop": "🔇 Alarm silenced"
+}
+
+def on_message(client, userdata, msg):
+    mode = msg.payload.decode()
+    print(SIREN_MODES.get(mode, "Invalid command"))
+
+client = mqtt.Client("Hallway_Siren")
+client.connect("1.0.0.2", 1883)
+client.subscribe("hallway/siren")
+client.on_message = on_message
+print("Alarm siren ready")
+client.loop_forever()

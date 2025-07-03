@@ -1,0 +1,22 @@
+# garden_valve.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    cmd = msg.payload.decode()
+    if cmd == "open":
+        print("🚰 Irrigation valve OPEN")
+    elif cmd == "close":
+        print("🚰 Irrigation valve CLOSED")
+    elif cmd.startswith("timer_"):
+        mins = cmd.split("_")[1]
+        print(f"⏲️ Valve open for {mins} minutes")
+
+client = mqtt.Client("Garden_Valve")
+client.connect("1.0.0.2", 1883)
+client.subscribe("garden/valve")
+client.on_message = on_message
+print("Irrigation valve controller ready")
+client.loop_forever()

@@ -1,0 +1,22 @@
+# kitchen_notifications.py
+import paho.mqtt.client as mqtt
+from datetime import datetime
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+
+def on_message(client, userdata, msg):
+    alert = msg.payload.decode()
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    
+    # Format: "[TIME] ALERT: MESSAGE"
+    print(f"\n📢 [{timestamp}] EMERGENCY: {alert}")
+    # Add mobile push/email/SMS logic here
+
+client = mqtt.Client("Kitchen_Alerts")
+client.connect("1.0.0.2", 1883)
+client.subscribe("kitchen/notifications")
+client.on_message = on_message
+print("Notification system active")
+client.loop_forever()

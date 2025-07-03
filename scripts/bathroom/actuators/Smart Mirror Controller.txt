@@ -1,0 +1,25 @@
+# bathroom_mirror.py
+import paho.mqtt.client as mqtt
+import json
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+DISPLAY_STATES = {
+    "default": {"time": True, "weather": True},
+    "shower": {"time": True, "news": True},
+    "off": {}
+}
+
+def on_message(client, userdata, msg):
+    command = msg.payload.decode()
+    if command in DISPLAY_STATES:
+        print(f"🪞 Mirror mode: {command}")
+        client.publish("bathroom/mirror/status", json.dumps(DISPLAY_STATES[command]))
+
+client = mqtt.Client("Bathroom_Mirror")
+client.connect("1.0.0.2", 1883)
+client.subscribe("bathroom/mirror/control")
+client.on_message = on_message
+print("Smart mirror ready")
+client.loop_forever()

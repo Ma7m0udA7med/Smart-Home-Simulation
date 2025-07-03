@@ -1,0 +1,152 @@
+import paho.mqtt.client as mqtt
+import time
+import threading  # For creating a timer to send data every 5 seconds
+
+BROKER = "1.0.0.2"  # Your MQTT broker IP
+
+# Sensor topics
+SENSOR_TOPICS = {
+    "temp": "iot/sensor/temp",
+    "humidity": "iot/sensor/humidity",
+    "motion": "iot/sensor/motion",
+    "door": "iot/sensor/door",
+    "gas": "iot/sensor/gas",
+    "light": "iot/sensor/light",
+    "water_leak": "iot/sensor/water_leak",
+    "rfid": "iot/sensor/rfid"
+}
+
+# Actuator topics
+ACTUATOR_TOPICS = {
+    "light": "iot/actuator/light",
+    "buzzer": "iot/actuator/buzzer",
+    "fan": "iot/actuator/fan",
+    "door_lock": "iot/actuator/door_lock",
+    "thermostat": "iot/actuator/thermostat",
+    "water_valve": "iot/actuator/water_valve",
+    "garage_door": "iot/actuator/garage_door",
+    "curtains": "iot/actuator/curtains"
+}
+
+# Sensor data storage
+sensor_data = {}
+
+# Flag to control when to publish data
+data_to_publish = False
+
+# Function to process sensor data and publish actions
+def process_data():
+    actions = {}
+    actionsp = [] 
+
+    # Light control based on brightness
+    if "light" in sensor_data:
+        light_value = float(sensor_data.get("light", "1000").split()[0])  # Handle float
+        if light_value < 300:
+            actions["light"] = "ON"
+            actionsp.append("Light is low, turning ON the light.")
+        else:
+            actions["light"] = "OFF"
+            actionsp.append("Light is sufficient, turning OFF the light.")
+
+    # Fan control based on temperature
+    if float(sensor_data.get("temp", "24.0")) > 28:
+        actions["fan"] = "ON"
+        actionsp.append("Temperature is high, turning ON the fan.")
+    else:
+        actions["fan"] = "OFF"
+        actionsp.append("Temperature is normal, turning OFF the fan.")
+
+    # Gas leak detection triggers buzzer
+    if "danger" in sensor_data.get("gas", "safe"):
+        actions["buzzer"] = "ON"
+        actionsp.append("Gas leak detected, turning ON the buzzer.")
+    else:
+        actions["buzzer"] = "OFF"
+        actionsp.append("No gas leak, turning OFF the buzzer.")
+
+    # Door auto-lock based on motion and RFID
+    if "open" in sensor_data.get("door", "closed") and "authorized" not in sensor_data.get("rfid", "unauthorized"):
+        actions["door_lock"] = "LOCK"
+        actionsp.append("Unauthorized entry detected, locking door.")
+    else:
+        actions["door_lock"] = "UNLOCK"
+        actionsp.append("Door is either closed or authorized, unlocking.")
+
+    # Thermostat adjustment based on temperature
+    current_temp = float(sensor_data.get("temp", "24.0"))
+    if current_temp > 26:
+        thermostat_setting = "26"  # Set the thermostat to 26°C if the temperature is above
+        actionsp.append(f"Setting thermostat to 26°C (cooling).")
+    elif current_temp < 18:
+        thermostat_setting = "18"  # Set the thermostat to 18°C if the temperature is below
+        actionsp.append(f"Setting thermostat to 18°C (heating).")
+    else:
+        thermostat_setting = str(current_temp)  # No change needed if temperature is between 18°C and 26°C
+        actionsp.append(f"Setting thermostat to {current_temp}°C (optimal).")
+
+    actions["thermostat"] = thermostat_setting
+
+    # Water valve control based on water leak detection
+    if "leak" in sensor_data.get("water_leak", "dry"):
+        actions["water_valve"] = "CLOSE"
+        actionsp.append("Water leak detected, closing water valve.")
+    else:
+        actions["water_valve"] = "OPEN"
+        actionsp.append("No leak, opening water valve.")
+
+    # Garage door opens if motion detected near garage
+    if "detected" in sensor_data.get("motion", "none"):
+        actions["garage_door"] = "OPEN"
+        actionsp.append("Motion detected near garage, opening garage door.")
+    else:
+        actions["garage_door"] = "CLOSE"
+        actionsp.append("No motion detected near garage, closing garage door.")
+
+    # Curtains adjust based on light sensor
+    if "light" in sensor_data:
+        light_value = float(sensor_data.get("light", "1000").split()[0])  # Handle float
+        if light_value < 200:
+            actions["curtains"] = "OPEN"
+            actionsp.append("Light is low, opening curtains.")
+        else:
+            actions["curtains"] = "CLOSE"
+            actionsp.append("Light is sufficient, closing curtains.")
+
+    # Publish actions to actuators
+    for actuator, command in actions.items():
+        client.publish(ACTUATOR_TOPICS[actuator], command)
+    for action in actionsp:
+        print(action)  # Print each action to show the results
+    # Print a separator line to differentiate between each message
+    print("\n" + "-" * 50 + "\n")
+
+# Function to send data every 5 seconds
+def send_data_periodically():
+    global data_to_publish
+    if data_to_publish:
+        process_data()  # Publish actions
+        data_to_publish = False  # Reset flag after publishing
+    threading.Timer(5, send_data_periodically).start()  # Re-call this function every 5 seconds
+
+# MQTT message handler
+def on_message(client, userdata, message):
+    sensor_name = [key for key, topic in SENSOR_TOPICS.items() if topic == message.topic]
+    if sensor_name:
+        sensor_data[sensor_name[0]] = message.payload.decode()
+        print(f"Received data from {sensor_name[0]}: {sensor_data[sensor_name[0]]}")  # Print the data received
+        global data_to_publish
+        data_to_publish = True
+
+# MQTT setup
+client = mqtt.Client()
+client.connect(BROKER, 1883, 60)
+client.on_message = on_message
+
+# Subscribe to all sensor topics
+for topic in SENSOR_TOPICS.values():
+    client.subscribe(topic)
+
+print("CPU script running, processing sensor data and controlling actuators...")
+send_data_periodically()
+client.loop_forever()

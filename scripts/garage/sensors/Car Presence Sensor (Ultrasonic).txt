@@ -1,0 +1,16 @@
+# garage_car.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Garage_Car_Sensor")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    present = "true" if random.random() > 0.3 else "false"  # 70% presence
+    client.publish("garage/car", present)
+    print(f"🚗 Car present: {present}")
+    time.sleep(30)

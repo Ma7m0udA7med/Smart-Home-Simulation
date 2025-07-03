@@ -1,0 +1,306 @@
+import paho.mqtt.client as mqtt
+import time
+import threading
+import requests
+from datetime import datetime
+from queue import Queue
+
+# Configuration
+BROKER = "1.0.0.2"
+WEBSERVER_URL = "http://localhost:8001/broadcast"
+
+# Sensor topics (expanded with new devices)
+SENSOR_TOPICS = {
+    # Living Room
+    "living_room_temp": "living_room/temperature",
+    "living_room_light": "living_room/light",
+    "living_room_motion": "living_room/motion",
+    "living_room_co2": "living_room/co2",
+    
+    # Bedroom
+    "bedroom_temp": "bedroom/temperature",
+    "bedroom_humidity": "bedroom/humidity",
+    "bedroom_light": "bedroom/light",
+    "bedroom_motion": "bedroom/motion",
+    "bedroom_bed": "bedroom/bed_occupied",
+    
+    # Kitchen
+    "kitchen_temp": "kitchen/temperature",
+    "kitchen_gas": "kitchen/gas",
+    "kitchen_water": "kitchen/water_leak",
+    "kitchen_smoke": "kitchen/smoke",
+    "kitchen_motion": "kitchen/motion",
+    
+    # Bathroom
+    "bathroom_humidity": "bathroom/humidity",
+    "bathroom_motion": "bathroom/motion",
+    "bathroom_water": "bathroom/water_leak",
+    
+    # Hallway
+    "hallway_temp": "hallway/temperature",
+    "hallway_motion": "hallway/motion",
+    "hallway_door": "hallway/door",
+    "hallway_light": "hallway/ambient_light",
+    
+    # Office
+    "office_temp": "office/temperature",
+    "office_humidity": "office/humidity",
+    "office_light": "office/ambient_light",
+    "office_motion": "office/occupancy",
+    "office_desk": "office/desk",
+    "office_co2": "office/co2",
+    "office_noise": "office/noise",
+    
+    # Garage
+    "garage_temp": "garage/temperature",
+    "garage_motion": "garage/motion",
+    "garage_door": "garage/door",
+    "garage_car": "garage/car",
+    "garage_air_co": "garage/air/co",
+    "garage_air_voc": "garage/air/voc",
+    
+    # Garden
+    "garden_moisture": "garden/soil/moisture",
+    "garden_rain": "garden/rain",
+    "garden_motion": "garden/motion",
+    "garden_light": "garden/light_intensity",
+    "garden_weather": "garden/weather/condition",
+    "garden_weather_temp": "garden/weather/temp",
+    "garden_weather_humidity": "garden/weather/humidity"
+}
+
+# Actuator topics (expanded with new devices)
+ACTUATOR_TOPICS = {
+    # Living Room
+    "living_room_lights": "living_room/lights",
+    "living_room_blinds": "living_room/blinds",
+    "living_room_purifier": "living_room/purifier",
+    "living_room_tv": "living_room/tv",
+    "living_room_ac": "living_room/ac",
+    
+    # Bedroom
+    "bedroom_lights": "bedroom/lights",
+    "bedroom_thermostat": "bedroom/thermostat",
+    "bedroom_blinds": "bedroom/blinds",
+    "bedroom_noise_machine": "bedroom/noise_machine",
+    
+    # Kitchen
+    "kitchen_lights": "kitchen/lights",
+    "kitchen_fan": "kitchen/fan",
+    "kitchen_water_valve": "kitchen/water_valve",
+    "kitchen_notifications": "kitchen/notifications",
+    
+    # Bathroom
+    "bathroom_lights": "bathroom/lights",
+    "bathroom_fan": "bathroom/fan",
+    "bathroom_floor_heat": "bathroom/floor_heat",
+    "bathroom_mirror": "bathroom/mirror/control",
+    "bathroom_voice": "bathroom/voice/input",
+    
+    # Hallway
+    "hallway_lights": "hallway/lights",
+    "hallway_lock": "hallway/lock",
+    "hallway_siren": "hallway/siren",
+    
+    # Office
+    "office_lights": "office/lights",
+    "office_blinds": "office/blinds",
+    "office_hvac": "office/hvac",
+    "office_noise_machine": "office/noise_machine",
+    "office_monitor": "office/monitor",
+    "office_air": "office/air",
+    
+    # Garage
+    "garage_opener": "garage/opener",
+    "garage_lights": "garage/lights",
+    "garage_fan": "garage/fan",
+    "garage_charger": "garage/charger",
+    "garage_exhaust": "garage/exhaust",
+    
+    # Garden
+    "garden_sprinkler": "garden/sprinkler",
+    "garden_lights": "garden/lights",
+    "garden_valve": "garden/valve",
+    "garden_path_lights": "garden/path_lights",
+    "garden_scheduler": "garden/schedule"
+}
+
+# Sensor data storage
+action_queue = Queue()
+sensor_data = {}
+last_processed = {}
+
+def send_to_webserver(payload):
+    try:
+        response = requests.post(WEBSERVER_URL, json=payload)
+        if response.status_code != 200:
+            print(f"Failed to send data to webserver: {response.status_code}")
+    except Exception as e:
+        print(f"Error sending to webserver: {e}")
+
+def process_data():
+    actions = {}
+    actionsp = []
+    current_time = datetime.now().hour
+    
+    # ----------------- Living Room Logic -----------------
+    if "living_room_temp" in sensor_data:
+        temp = float(sensor_data["living_room_temp"])
+        if temp > 26:
+            actions["living_room_ac"] = f"cool:{max(22, temp-2)}"
+            actionsp.append(f"Living room too hot ({temp}°C), setting AC to {max(22, temp-2)}°C")
+        elif temp < 18:
+            actions["living_room_ac"] = f"heat:{min(22, temp+2)}"
+            actionsp.append(f"Living room too cold ({temp}°C), setting AC to {min(22, temp+2)}°C")
+    
+    if "living_room_light" in sensor_data:
+        light = int(sensor_data["living_room_light"])
+        if light < 300 and current_time > 6 and current_time < 22:
+            actions["living_room_lights"] = "on"
+            actionsp.append(f"Living room light low ({light} lux), turning lights on")
+        elif light >= 300 and "living_room_lights" in sensor_data and sensor_data["living_room_lights"] == "on":
+            actions["living_room_lights"] = "off"
+            actionsp.append(f"Living room light sufficient ({light} lux), turning lights off")
+    
+    if "living_room_co2" in sensor_data and int(sensor_data["living_room_co2"]) > 1000:
+        actions["living_room_purifier"] = "on"
+        actionsp.append(f"High CO2 ({sensor_data['living_room_co2']} ppm), turning on purifier")
+    
+    # ----------------- Bedroom Logic -----------------
+    if "bedroom_bed" in sensor_data and sensor_data["bedroom_bed"] == "true":
+        if "bedroom_light" in sensor_data and int(sensor_data["bedroom_light"]) > 50:
+            actions["bedroom_blinds"] = "close"
+            actionsp.append("Bed occupied during day, closing blinds")
+        
+        if "bedroom_temp" in sensor_data:
+            temp = float(sensor_data["bedroom_temp"])
+            if temp > 24:
+                actions["bedroom_thermostat"] = "22"
+                actionsp.append(f"Bedroom too warm ({temp}°C), setting thermostat to 22°C")
+            elif temp < 16:
+                actions["bedroom_thermostat"] = "20"
+                actionsp.append(f"Bedroom too cold ({temp}°C), setting thermostat to 20°C")
+    
+    # ----------------- Kitchen Logic -----------------
+    if "kitchen_gas" in sensor_data and int(sensor_data["kitchen_gas"]) > 30:
+        actions["kitchen_fan"] = "on"
+        actions["kitchen_notifications"] = f"Gas leak detected! Level: {sensor_data['kitchen_gas']}ppm"
+        actionsp.append(f"Gas leak detected ({sensor_data['kitchen_gas']} ppm), turning on exhaust fan")
+    
+    if "kitchen_smoke" in sensor_data and int(sensor_data["kitchen_smoke"]) > 30:
+        actions["kitchen_fan"] = "on"
+        actions["hallway_siren"] = "fire"
+        actions["kitchen_notifications"] = f"Smoke detected! Level: {sensor_data['kitchen_smoke']}%"
+        actionsp.append(f"Smoke detected ({sensor_data['kitchen_smoke']}%), activating fire alarm")
+    
+    if "kitchen_water" in sensor_data and sensor_data["kitchen_water"] == "true":
+        actions["kitchen_water_valve"] = "close"
+        actions["kitchen_notifications"] = "Water leak detected in kitchen!"
+        actionsp.append("Kitchen water leak detected, closing main valve")
+    
+    # ----------------- Bathroom Logic -----------------
+    if "bathroom_humidity" in sensor_data and int(sensor_data["bathroom_humidity"]) > 70:
+        actions["bathroom_fan"] = "on"
+        actionsp.append(f"High humidity ({sensor_data['bathroom_humidity']}%), turning on exhaust fan")
+    
+    if "bathroom_motion" in sensor_data and sensor_data["bathroom_motion"] == "active":
+        if current_time < 6 or current_time > 22:
+            actions["bathroom_lights"] = "on"
+            actionsp.append("Motion detected in bathroom at night, turning on lights")
+    
+    # ----------------- Hallway Logic -----------------
+    if "hallway_motion" in sensor_data and sensor_data["hallway_motion"] == "active":
+        if current_time < 6 or current_time > 22:
+            actions["hallway_lights"] = "on"
+            actionsp.append("Motion detected in hallway at night, turning on lights")
+    
+    if "hallway_door" in sensor_data and sensor_data["hallway_door"] == "open":
+        actions["hallway_siren"] = "burglar" if current_time < 6 or current_time > 22 else "none"
+        actionsp.append("Front door opened, checking security status")
+    
+    # ----------------- Office Logic -----------------
+    if "office_desk" in sensor_data and sensor_data["office_desk"] == "true":
+        if "office_light" in sensor_data and int(sensor_data["office_light"]) < 300:
+            actions["office_lights"] = "focus"
+            actionsp.append("Desk occupied with low light, setting lights to focus mode")
+        
+        if "office_co2" in sensor_data and int(sensor_data["office_co2"]) > 1200:
+            actions["office_air"] = "ventilate"
+            actionsp.append(f"High CO2 ({sensor_data['office_co2']} ppm), activating ventilation")
+    
+    # ----------------- Garage Logic -----------------
+    if "garage_air_co" in sensor_data and int(sensor_data["garage_air_co"]) > 25:
+        actions["garage_exhaust"] = "activate"
+        actions["garage_fan"] = "high"
+        actions["kitchen_notifications"] = f"Dangerous CO levels in garage: {sensor_data['garage_air_co']}ppm"
+        actionsp.append(f"Dangerous CO levels ({sensor_data['garage_air_co']} ppm), activating exhaust")
+    
+    if "garage_car" in sensor_data and sensor_data["garage_car"] == "true":
+        actions["garage_charger"] = "on" if current_time >= 23 or current_time <= 6 else "off"
+        actionsp.append(f"Car detected in garage, {'enabling' if actions['garage_charger'] == 'on' else 'disabling'} charger")
+    
+    # ----------------- Garden Logic -----------------
+    if "garden_moisture" in sensor_data and int(sensor_data["garden_moisture"]) < 25:
+        if "garden_rain" not in sensor_data or sensor_data["garden_rain"] == "false":
+            actions["garden_sprinkler"] = "water_lawn"
+            actionsp.append(f"Soil moisture low ({sensor_data['garden_moisture']}%), activating sprinklers")
+    
+    if "garden_motion" in sensor_data and sensor_data["garden_motion"] == "active":
+        if current_time < 6 or current_time > 22:
+            actions["garden_lights"] = "on"
+            actionsp.append("Motion detected in garden at night, turning on security lights")
+    
+    # Publish all actions
+    for actuator, command in actions.items():
+        client.publish(ACTUATOR_TOPICS[actuator], command)
+    
+    # Print and send actions
+    for action in actionsp:
+        print(action)
+    
+    if actions:
+        payload = {
+            **sensor_data,
+            "actuators": actions,
+            "timestamp": datetime.now().isoformat()
+        }
+        send_to_webserver(payload)
+    
+    print("\n" + "-" * 50 + "\n")
+
+def action_processor():
+    while True:
+        # Process immediately when data arrives
+        sensor_name, value = action_queue.get()
+        sensor_data[sensor_name] = value
+        
+        # Only process if we haven't handled this sensor recently
+        now = time.time()
+        if last_processed.get(sensor_name, 0) < now - 1:  # 1 second debounce
+            process_data()
+            last_processed[sensor_name] = now
+        
+        action_queue.task_done()
+
+def on_message(client, userdata, message):
+    sensor_name = next((key for key, topic in SENSOR_TOPICS.items() if topic == message.topic), None)
+    if sensor_name:
+        value = message.payload.decode()
+        print(f"Received from {sensor_name}: {value}")
+        action_queue.put((sensor_name, value))
+
+# Start the action processor thread
+processor_thread = threading.Thread(target=action_processor, daemon=True)
+processor_thread.start()
+
+# MQTT setup
+client = mqtt.Client("SmartHomeController")
+client.connect(BROKER, 1883, 60)
+client.on_message = on_message
+
+# Subscribe to all sensor topics
+for topic in SENSOR_TOPICS.values():
+    client.subscribe(topic)
+
+print(" Smart Home Controller running...")
+client.loop_forever()

@@ -1,0 +1,22 @@
+# garden_sprinkler.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+ZONES = ["lawn", "flower_bed", "vegetables"]
+
+def on_message(client, userdata, msg):
+    cmd = msg.payload.decode()
+    if cmd.startswith("water_"):
+        zone = cmd.split("_")[1]
+        print(f"🚿 Watering {zone} zone for 5 minutes")
+    elif cmd == "stop":
+        print("⏹️ All irrigation stopped")
+
+client = mqtt.Client("Garden_Sprinkler")
+client.connect("1.0.0.2", 1883)
+client.subscribe("garden/sprinkler")
+client.on_message = on_message
+print("Sprinkler controller ready")
+client.loop_forever()

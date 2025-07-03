@@ -1,0 +1,16 @@
+# bathroom_motion.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Bathroom_Motion")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    motion = "active" if random.random() > 0.3 else "inactive"  # 70% detection
+    client.publish("bathroom/motion", motion)
+    print(f" Motion: {motion}")
+    time.sleep(10)

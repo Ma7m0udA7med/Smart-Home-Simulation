@@ -1,0 +1,22 @@
+# hallway_camera.py
+import paho.mqtt.client as mqtt
+import random
+import time
+from datetime import datetime
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Hallway_Camera")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    if random.random() > 0.7:  # 30% chance of motion detection
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"motion_{timestamp}.jpg"
+        client.publish("hallway/camera/motion", filename)
+        print(f" Captured: {filename}")
+    
+    # Continuous simulated stream
+    client.publish("hallway/camera/status", "online")
+    time.sleep(5)
