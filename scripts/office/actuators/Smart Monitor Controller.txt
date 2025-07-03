@@ -1,0 +1,19 @@
+# office_monitor.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    cmd = msg.payload.decode()
+    if cmd == "wake":
+        print("🖥️ Monitor ON (Work Mode)")
+    elif cmd == "sleep":
+        print("🖥️ Monitor OFF (Blue Light Reduced)")
+
+client = mqtt.Client("Office_Monitor")
+client.connect("1.0.0.2", 1883)
+client.subscribe("office/monitor")
+client.on_message = on_message
+print("Monitor controller ready")
+client.loop_forever()

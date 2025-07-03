@@ -1,0 +1,21 @@
+# office_lights.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    cmd = msg.payload.decode()
+    if ":" in cmd:  # "color_temp:brightness"
+        ct, bright = cmd.split(":")
+        print(f"💡 Lights: {bright}% at {ct}K")
+    elif cmd == "focus":
+        print("💡 5000K 100% (Focus Mode)")
+    elif cmd == "relax":
+        print("💡 2700K 40% (Relax Mode)")
+
+client = mqtt.Client("Office_Lights")
+client.connect("1.0.0.2", 1883)
+client.subscribe("office/lights")
+client.on_message = on_message
+client.loop_forever()

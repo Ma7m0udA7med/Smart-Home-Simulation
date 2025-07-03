@@ -1,0 +1,28 @@
+# kitchen_lights.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+BRIGHTNESS = 0  # Current state
+
+def on_message(client, userdata, msg):
+    global BRIGHTNESS
+    cmd = msg.payload.decode()
+    
+    if cmd == "on":
+        BRIGHTNESS = 100
+    elif cmd == "off":
+        BRIGHTNESS = 0
+    elif cmd.isdigit():
+        BRIGHTNESS = min(100, int(cmd))
+    
+    print(f"💡 Kitchen lights: {BRIGHTNESS}%")
+    # Add physical light control logic here
+
+client = mqtt.Client("Kitchen_Lights")
+client.connect("1.0.0.2", 1883)
+client.subscribe("kitchen/lights")
+client.on_message = on_message
+print("Kitchen light controller ready")
+client.loop_forever()

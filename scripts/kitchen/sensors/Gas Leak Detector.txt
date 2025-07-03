@@ -1,0 +1,17 @@
+# kitchen_gas.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2   
+PORT = 1883
+
+client = mqtt.Client("Kitchen_Gas")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    gas_level = random.randint(0, 100)  # 0-100ppm
+    client.publish("kitchen/gas", gas_level)
+    status = "⚠️ DANGER" if gas_level > 50 else "✓ Normal"
+    print(f"{status} Gas: {gas_level}ppm")
+    time.sleep(15)

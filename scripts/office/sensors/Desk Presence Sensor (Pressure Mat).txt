@@ -1,0 +1,16 @@
+# office_desk.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Office_Desk")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    occupied = "true" if random.random() > 0.4 else "false"  # 60% occupancy
+    client.publish("office/desk", occupied)
+    print(f"🪑 Desk occupied: {occupied}")
+    time.sleep(15)

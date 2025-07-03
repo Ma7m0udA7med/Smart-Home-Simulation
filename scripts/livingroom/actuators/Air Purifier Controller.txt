@@ -1,0 +1,22 @@
+# living_room_purifier.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    command = msg.payload.decode()
+    print(f"Purifier command: {command}")
+    if command == "on":
+        print("🌀 Purifier running at speed 2")
+    elif command == "turbo":
+        print("🌀 Purifier running at speed 5 (turbo)")
+    elif command == "off":
+        print("🌀 Purifier stopped")
+
+client = mqtt.Client("LivingRoom_Purifier")
+client.connect(BROKER, PORT)
+client.subscribe("living_room/purifier")
+client.on_message = on_message
+print("Waiting for purifier commands...")
+client.loop_forever()

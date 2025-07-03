@@ -1,0 +1,23 @@
+# living_room_lights.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    command = msg.payload.decode()
+    print(f"Lights command: {command}")
+    # Simulate physical light response
+    if command == "on":
+        print("💡 Lights turned ON")
+    elif command == "off":
+        print("💡 Lights turned OFF")
+    elif command == "dim":
+        print("💡 Lights dimmed to 50%")
+
+client = mqtt.Client("LivingRoom_Lights")
+client.connect(BROKER, PORT)
+client.subscribe("living_room/lights")
+client.on_message = on_message
+print("Waiting for light commands...")
+client.loop_forever()

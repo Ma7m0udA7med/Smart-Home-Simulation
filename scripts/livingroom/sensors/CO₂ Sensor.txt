@@ -1,0 +1,16 @@
+# living_room_co2.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("LivingRoom_CO2")
+client.connect(BROKER, PORT)
+
+while True:
+    co2_level = random.randint(400, 2000)  # 400-2000 ppm range
+    client.publish("living_room/co2", co2_level)
+    print(f"Published CO₂: {co2_level} ppm")
+    time.sleep(20)

@@ -1,0 +1,16 @@
+# living_room_motion.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("LivingRoom_Motion")
+client.connect(BROKER, PORT)
+
+while True:
+    motion_state = "active" if random.random() > 0.7 else "inactive"  # 30% detection chance
+    client.publish("living_room/motion", motion_state)
+    print(f"Published motion: {motion_state}")
+    time.sleep(5)

@@ -1,0 +1,19 @@
+# living_room_temp.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("LivingRoom_Temp")
+client.connect(BROKER, PORT)
+
+base_temp = 22.0  # Base temperature in °C
+
+while True:
+    temp_variation = random.uniform(-2.0, 2.0)
+    current_temp = round(base_temp + temp_variation, 1)
+    client.publish("living_room/temperature", current_temp)
+    print(f"Published temperature: {current_temp}°C")
+    time.sleep(5)

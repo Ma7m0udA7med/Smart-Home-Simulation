@@ -1,0 +1,22 @@
+# living_room_tv.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    command = msg.payload.decode()
+    print(f"TV command: {command}")
+    if command == "on":
+        print("📺 TV powered ON (HDMI1)")
+    elif command == "netflix":
+        print("📺 Launching Netflix...")
+    elif command == "off":
+        print("📺 TV powered OFF")
+
+client = mqtt.Client("LivingRoom_TV")
+client.connect(BROKER, PORT)
+client.subscribe("living_room/tv")
+client.on_message = on_message
+print("Waiting for TV commands...")
+client.loop_forever()

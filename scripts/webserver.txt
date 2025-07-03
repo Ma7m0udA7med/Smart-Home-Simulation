@@ -1,0 +1,1246 @@
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
+import uvicorn
+from typing import List
+from datetime import datetime
+
+app = FastAPI()
+active_connections: List[WebSocket] = []
+
+html_template = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeoHome | Smart Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #f43f5e;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --gray: #94a3b8;
+            --gray-dark: #64748b;
+            
+            --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --card-shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            color: var(--dark);
+            line-height: 1.5;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: white;
+            padding: 1.5rem;
+            border-right: 1px solid #e2e8f0;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--primary);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .logo-text {
+            font-weight: 700;
+            font-size: 1.25rem;
+        }
+
+        .nav-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .nav-item {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: var(--gray-dark);
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .nav-item:hover {
+            background: #f1f5f9;
+            color: var(--primary-dark);
+        }
+
+        .nav-item.active {
+            background: #eef2ff;
+            color: var(--primary-dark);
+            font-weight: 500;
+        }
+
+        .nav-item i {
+            width: 24px;
+            text-align: center;
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 2rem;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .alert-banner {
+            background: var(--danger);
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            display: none;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        /* Vertical Room Layout */
+        .rooms-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .room-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .room-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--card-shadow-hover);
+        }
+
+        .room-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .room-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .room-status {
+            font-size: 0.875rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 999px;
+            background: #e2e8f0;
+            color: var(--gray-dark);
+        }
+
+        .room-status.active {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .devices-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 1rem;
+        }
+
+        .device-card {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .device-card:hover {
+            background: #f1f5f9;
+        }
+
+        .device-icon {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 0.5rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #e0e7ff;
+            color: var(--primary);
+        }
+
+        .device-icon.sensor {
+            background: #e0f2fe;
+            color: #0369a1;
+        }
+
+        .device-icon.alert {
+            background: #fee2e2;
+            color: var(--danger);
+        }
+
+        .device-name {
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .device-value {
+            font-size: 0.875rem;
+            color: var(--gray-dark);
+        }
+
+        .device-value.on {
+            color: var(--success);
+            font-weight: 500;
+        }
+
+        .device-value.off {
+            color: var(--gray);
+        }
+
+        .device-value.warning {
+            color: var(--warning);
+            font-weight: 500;
+        }
+
+        .device-value.danger {
+            color: var(--danger);
+            font-weight: 500;
+        }
+
+        /* Emergency Alerts */
+        #emergency-alerts {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            width: 320px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .alert-item {
+            background: white;
+            border-left: 4px solid var(--danger);
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .alert-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .alert-title i {
+            color: var(--danger);
+        }
+
+        .alert-message {
+            font-size: 0.875rem;
+            color: var(--gray-dark);
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="logo">
+                <div class="logo-icon">N</div>
+                <div class="logo-text">NeoHome</div>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active">
+                    <i>🏠</i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i>🔌</i>
+                    <span>Devices</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i>⏱️</i>
+                    <span>Automation</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i>📊</i>
+                    <span>Analytics</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i>⚙️</i>
+                    <span>Settings</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="header">
+                <h1 class="page-title">Smart Home Dashboard</h1>
+                <div class="user-menu">
+                    <div class="notification-badge">3</div>
+                    <div class="avatar">👤</div>
+                </div>
+            </div>
+
+            <div class="alert-banner" id="global-alert"></div>
+
+            <div class="rooms-container" id="all-rooms">
+                <!-- Living Room -->
+                <div class="room-card" id="living-room-section">
+                    <div class="room-header">
+                        <h2 class="room-title">Living Room</h2>
+                        <span class="room-status active">Active</span>
+                    </div>
+                    <div class="devices-grid">
+                        <div class="device-card" id="living-room-temp">
+                            <div class="device-icon sensor">🌡️</div>
+                            <h3 class="device-name">Temperature</h3>
+                            <div class="device-value">22°C</div>
+                        </div>
+                        <div class="device-card" id="living-room-light">
+                            <div class="device-icon sensor">💡</div>
+                            <h3 class="device-name">Light</h3>
+                            <div class="device-value">300 lux</div>
+                        </div>
+                        <div class="device-card" id="living-room-motion">
+                            <div class="device-icon sensor">👣</div>
+                            <h3 class="device-name">Motion</h3>
+                            <div class="device-value off">No motion</div>
+                        </div>
+                        <div class="device-card" id="living-room-co2">
+                            <div class="device-icon sensor">☁️</div>
+                            <h3 class="device-name">CO₂</h3>
+                            <div class="device-value">450 ppm</div>
+                        </div>
+                        <div class="device-card" id="living-room-lights">
+                            <div class="device-icon">💡</div>
+                            <h3 class="device-name">Lights</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="living-room-blinds">
+                            <div class="device-icon">🪟</div>
+                            <h3 class="device-name">Blinds</h3>
+                            <div class="device-value off">Closed</div>
+                        </div>
+                        <div class="device-card" id="living-room-ac">
+                            <div class="device-icon">❄️</div>
+                            <h3 class="device-name">AC</h3>
+                            <div class="device-value">22°C</div>
+                        </div>
+                        <div class="device-card" id="living-room-tv">
+                            <div class="device-icon">📺</div>
+                            <h3 class="device-name">TV</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="living-room-purifier">
+                            <div class="device-icon">🌬️</div>
+                            <h3 class="device-name">Air Purifier</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kitchen -->
+                <div class="room-card" id="kitchen-section">
+                    <div class="room-header">
+                        <h2 class="room-title">Kitchen</h2>
+                        <span class="room-status active">Active</span>
+                    </div>
+                    <div class="devices-grid">
+                        <div class="device-card" id="kitchen-temp">
+                            <div class="device-icon sensor">🌡️</div>
+                            <h3 class="device-name">Temperature</h3>
+                            <div class="device-value">21°C</div>
+                        </div>
+                        <div class="device-card" id="kitchen-gas">
+                            <div class="device-icon sensor alert">🔥</div>
+                            <h3 class="device-name">Gas Level</h3>
+                            <div class="device-value">0 ppm</div>
+                        </div>
+                        <div class="device-card" id="kitchen-water">
+                            <div class="device-icon sensor alert">💧</div>
+                            <h3 class="device-name">Water Leak</h3>
+                            <div class="device-value safe">Dry</div>
+                        </div>
+                        <div class="device-card" id="kitchen-smoke">
+                            <div class="device-icon sensor alert">🚬</div>
+                            <h3 class="device-name">Smoke</h3>
+                            <div class="device-value">0%</div>
+                        </div>
+                        <div class="device-card" id="kitchen-motion">
+                            <div class="device-icon sensor">👣</div>
+                            <h3 class="device-name">Motion</h3>
+                            <div class="device-value off">No motion</div>
+                        </div>
+                        <div class="device-card" id="kitchen-lights">
+                            <div class="device-icon">💡</div>
+                            <h3 class="device-name">Lights</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="kitchen-fan">
+                            <div class="device-icon">🌀</div>
+                            <h3 class="device-name">Exhaust Fan</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="kitchen-water-valve">
+                            <div class="device-icon">🚰</div>
+                            <h3 class="device-name">Water Valve</h3>
+                            <div class="device-value off">Closed</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bedroom -->
+                <div class="room-card" id="bedroom-section">
+                    <div class="room-header">
+                        <h2 class="room-title">Bedroom</h2>
+                        <span class="room-status">Inactive</span>
+                    </div>
+                    <div class="devices-grid">
+                        <div class="device-card" id="bedroom-temp">
+                            <div class="device-icon sensor">🌡️</div>
+                            <h3 class="device-name">Temperature</h3>
+                            <div class="device-value">18°C</div>
+                        </div>
+                        <div class="device-card" id="bedroom-humidity">
+                            <div class="device-icon sensor">💦</div>
+                            <h3 class="device-name">Humidity</h3>
+                            <div class="device-value">50%</div>
+                        </div>
+                        <div class="device-card" id="bedroom-light">
+                            <div class="device-icon sensor">💡</div>
+                            <h3 class="device-name">Light</h3>
+                            <div class="device-value">100 lux</div>
+                        </div>
+                        <div class="device-card" id="bedroom-motion">
+                            <div class="device-icon sensor">👣</div>
+                            <h3 class="device-name">Motion</h3>
+                            <div class="device-value off">No motion</div>
+                        </div>
+                        <div class="device-card" id="bedroom-bed">
+                            <div class="device-icon sensor">🛏️</div>
+                            <h3 class="device-name">Bed Occupancy</h3>
+                            <div class="device-value off">Vacant</div>
+                        </div>
+                        <div class="device-card" id="bedroom-lights">
+                            <div class="device-icon">💡</div>
+                            <h3 class="device-name">Lights</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="bedroom-thermostat">
+                            <div class="device-icon">🌡️</div>
+                            <h3 class="device-name">Thermostat</h3>
+                            <div class="device-value">18°C</div>
+                        </div>
+                        <div class="device-card" id="bedroom-blinds">
+                            <div class="device-icon">🪟</div>
+                            <h3 class="device-name">Blinds</h3>
+                            <div class="device-value off">Closed</div>
+                        </div>
+                        <div class="device-card" id="bedroom-noise-machine">
+                            <div class="device-icon">🎵</div>
+                            <h3 class="device-name">Noise Machine</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bathroom -->
+                <div class="room-card" id="bathroom-section">
+                    <div class="room-header">
+                        <h2 class="room-title">Bathroom</h2>
+                        <span class="room-status">Inactive</span>
+                    </div>
+                    <div class="devices-grid">
+                        <div class="device-card" id="bathroom-humidity">
+                            <div class="device-icon sensor">💦</div>
+                            <h3 class="device-name">Humidity</h3>
+                            <div class="device-value">60%</div>
+                        </div>
+                        <div class="device-card" id="bathroom-motion">
+                            <div class="device-icon sensor">👣</div>
+                            <h3 class="device-name">Motion</h3>
+                            <div class="device-value off">No motion</div>
+                        </div>
+                        <div class="device-card" id="bathroom-water">
+                            <div class="device-icon sensor alert">💧</div>
+                            <h3 class="device-name">Water Leak</h3>
+                            <div class="device-value safe">Dry</div>
+                        </div>
+                        <div class="device-card" id="bathroom-lights">
+                            <div class="device-icon">💡</div>
+                            <h3 class="device-name">Lights</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="bathroom-fan">
+                            <div class="device-icon">🌀</div>
+                            <h3 class="device-name">Exhaust Fan</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="bathroom-floor-heat">
+                            <div class="device-icon">🔥</div>
+                            <h3 class="device-name">Floor Heating</h3>
+                            <div class="device-value">20°C</div>
+                        </div>
+                        <div class="device-card" id="bathroom-mirror">
+                            <div class="device-icon">🪞</div>
+                            <h3 class="device-name">Smart Mirror</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hallway -->
+                <div class="room-card" id="hallway-section">
+                    <div class="room-header">
+                        <h2 class="room-title">Hallway</h2>
+                        <span class="room-status">Inactive</span>
+                    </div>
+                    <div class="devices-grid">
+                        <div class="device-card" id="hallway-temp">
+                            <div class="device-icon sensor">🌡️</div>
+                            <h3 class="device-name">Temperature</h3>
+                            <div class="device-value">19°C</div>
+                        </div>
+                        <div class="device-card" id="hallway-motion">
+                            <div class="device-icon sensor">👣</div>
+                            <h3 class="device-name">Motion</h3>
+                            <div class="device-value off">No motion</div>
+                        </div>
+                        <div class="device-card" id="hallway-door">
+                            <div class="device-icon sensor">🚪</div>
+                            <h3 class="device-name">Door</h3>
+                            <div class="device-value off">Closed</div>
+                        </div>
+                        <div class="device-card" id="hallway-light">
+                            <div class="device-icon sensor">💡</div>
+                            <h3 class="device-name">Ambient Light</h3>
+                            <div class="device-value">200 lux</div>
+                        </div>
+                        <div class="device-card" id="hallway-lights">
+                            <div class="device-icon">💡</div>
+                            <h3 class="device-name">Lights</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="hallway-lock">
+                            <div class="device-icon">🔒</div>
+                            <h3 class="device-name">Smart Lock</h3>
+                            <div class="device-value off">Locked</div>
+                        </div>
+                        <div class="device-card" id="hallway-siren">
+                            <div class="device-icon">🚨</div>
+                            <h3 class="device-name">Alarm Siren</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Office -->
+                <div class="room-card" id="office-section">
+                    <div class="room-header">
+                        <h2 class="room-title">Home Office</h2>
+                        <span class="room-status">Inactive</span>
+                    </div>
+                    <div class="devices-grid">
+                        <div class="device-card" id="office-temp">
+                            <div class="device-icon sensor">🌡️</div>
+                            <h3 class="device-name">Temperature</h3>
+                            <div class="device-value">20°C</div>
+                        </div>
+                        <div class="device-card" id="office-humidity">
+                            <div class="device-icon sensor">💦</div>
+                            <h3 class="device-name">Humidity</h3>
+                            <div class="device-value">45%</div>
+                        </div>
+                        <div class="device-card" id="office-light">
+                            <div class="device-icon sensor">💡</div>
+                            <h3 class="device-name">Ambient Light</h3>
+                            <div class="device-value">400 lux</div>
+                        </div>
+                        <div class="device-card" id="office-motion">
+                            <div class="device-icon sensor">👣</div>
+                            <h3 class="device-name">Occupancy</h3>
+                            <div class="device-value off">Vacant</div>
+                        </div>
+                        <div class="device-card" id="office-desk">
+                            <div class="device-icon sensor">💺</div>
+                            <h3 class="device-name">Desk Presence</h3>
+                            <div class="device-value off">Vacant</div>
+                        </div>
+                        <div class="device-card" id="office-co2">
+                            <div class="device-icon sensor">☁️</div>
+                            <h3 class="device-name">CO₂</h3>
+                            <div class="device-value">500 ppm</div>
+                        </div>
+                        <div class="device-card" id="office-noise">
+                            <div class="device-icon sensor">🔊</div>
+                            <h3 class="device-name">Noise Level</h3>
+                            <div class="device-value">40 dB</div>
+                        </div>
+                        <div class="device-card" id="office-lights">
+                            <div class="device-icon">💡</div>
+                            <h3 class="device-name">Smart Lights</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="office-blinds">
+                            <div class="device-icon">🪟</div>
+                            <h3 class="device-name">Blinds</h3>
+                            <div class="device-value off">Closed</div>
+                        </div>
+                        <div class="device-card" id="office-hvac">
+                            <div class="device-icon">❄️</div>
+                            <h3 class="device-name">HVAC</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="office-noise-machine">
+                            <div class="device-icon">🎵</div>
+                            <h3 class="device-name">Noise Machine</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="office-monitor">
+                            <div class="device-icon">🖥️</div>
+                            <h3 class="device-name">Monitor</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="office-air">
+                            <div class="device-icon">🌬️</div>
+                            <h3 class="device-name">Air System</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Garage -->
+                <div class="room-card" id="garage-section">
+                    <div class="room-header">
+                        <h2 class="room-title">Garage</h2>
+                        <span class="room-status">Inactive</span>
+                    </div>
+                    <div class="devices-grid">
+                        <div class="device-card" id="garage-temp">
+                            <div class="device-icon sensor">🌡️</div>
+                            <h3 class="device-name">Temperature</h3>
+                            <div class="device-value">15°C</div>
+                        </div>
+                        <div class="device-card" id="garage-motion">
+                            <div class="device-icon sensor">👣</div>
+                            <h3 class="device-name">Motion</h3>
+                            <div class="device-value off">No motion</div>
+                        </div>
+                        <div class="device-card" id="garage-door">
+                            <div class="device-icon sensor">🚪</div>
+                            <h3 class="device-name">Garage Door</h3>
+                            <div class="device-value off">Closed</div>
+                        </div>
+                        <div class="device-card" id="garage-car">
+                            <div class="device-icon sensor">🚗</div>
+                            <h3 class="device-name">Car Presence</h3>
+                            <div class="device-value off">Absent</div>
+                        </div>
+                        <div class="device-card" id="garage-air-co">
+                            <div class="device-icon sensor alert">☁️</div>
+                            <h3 class="device-name">CO Level</h3>
+                            <div class="device-value">0 ppm</div>
+                        </div>
+                        <div class="device-card" id="garage-air-voc">
+                            <div class="device-icon sensor">🌫️</div>
+                            <h3 class="device-name">VOC Level</h3>
+                            <div class="device-value">0 ppb</div>
+                        </div>
+                        <div class="device-card" id="garage-opener">
+                            <div class="device-icon">🚪</div>
+                            <h3 class="device-name">Door Opener</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="garage-lights">
+                            <div class="device-icon">💡</div>
+                            <h3 class="device-name">Lights</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="garage-fan">
+                            <div class="device-icon">🌀</div>
+                            <h3 class="device-name">Ventilation Fan</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="garage-charger">
+                            <div class="device-icon">🔌</div>
+                            <h3 class="device-name">EV Charger</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="garage-exhaust">
+                            <div class="device-icon">🌬️</div>
+                            <h3 class="device-name">Exhaust System</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Garden -->
+                <div class="room-card" id="garden-section">
+                    <div class="room-header">
+                        <h2 class="room-title">Garden</h2>
+                        <span class="room-status">Inactive</span>
+                    </div>
+                    <div class="devices-grid">
+                        <div class="device-card" id="garden-moisture">
+                            <div class="device-icon sensor">💧</div>
+                            <h3 class="device-name">Soil Moisture</h3>
+                            <div class="device-value">30%</div>
+                        </div>
+                        <div class="device-card" id="garden-rain">
+                            <div class="device-icon sensor">🌧️</div>
+                            <h3 class="device-name">Rain</h3>
+                            <div class="device-value off">Dry</div>
+                        </div>
+                        <div class="device-card" id="garden-motion">
+                            <div class="device-icon sensor">👣</div>
+                            <h3 class="device-name">Motion</h3>
+                            <div class="device-value off">No motion</div>
+                        </div>
+                        <div class="device-card" id="garden-light">
+                            <div class="device-icon sensor">💡</div>
+                            <h3 class="device-name">Light Intensity</h3>
+                            <div class="device-value">1000 lux</div>
+                        </div>
+                        <div class="device-card" id="garden-weather">
+                            <div class="device-icon sensor">🌤️</div>
+                            <h3 class="device-name">Weather</h3>
+                            <div class="device-value">Sunny</div>
+                        </div>
+                        <div class="device-card" id="garden-weather-temp">
+                            <div class="device-icon sensor">🌡️</div>
+                            <h3 class="device-name">Outdoor Temp</h3>
+                            <div class="device-value">18°C</div>
+                        </div>
+                        <div class="device-card" id="garden-weather-humidity">
+                            <div class="device-icon sensor">💦</div>
+                            <h3 class="device-name">Outdoor Humidity</h3>
+                            <div class="device-value">55%</div>
+                        </div>
+                        <div class="device-card" id="garden-sprinkler">
+                            <div class="device-icon">💦</div>
+                            <h3 class="device-name">Sprinkler</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="garden-lights">
+                            <div class="device-icon">💡</div>
+                            <h3 class="device-name">Security Lights</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                        <div class="device-card" id="garden-valve">
+                            <div class="device-icon">🚰</div>
+                            <h3 class="device-name">Irrigation Valve</h3>
+                            <div class="device-value off">Closed</div>
+                        </div>
+                        <div class="device-card" id="garden-path-lights">
+                            <div class="device-icon">💡</div>
+                            <h3 class="device-name">Path Lights</h3>
+                            <div class="device-value off">Off</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="emergency-alerts"></div>
+
+    <script>
+        const ws = new WebSocket(`ws://${window.location.host}/ws`);
+        const emergencyAlerts = document.getElementById('emergency-alerts');
+        const globalAlert = document.getElementById('global-alert');
+
+        function checkEmergencies(data) {
+            globalAlert.style.display = 'none';
+            const activeAlerts = new Set();
+            const alerts = [];
+            
+            if (data.kitchen_gas && parseInt(data.kitchen_gas) > 50) {
+                alerts.push(`⚠️ Gas leak detected (${data.kitchen_gas}ppm)`);
+                activeAlerts.add('gas');
+            }
+            if (data.kitchen_smoke && parseInt(data.kitchen_smoke) > 30) {
+                alerts.push(`⚠️ Smoke detected (${data.kitchen_smoke}%)`);
+                activeAlerts.add('smoke');
+            }
+            if (data.kitchen_water && data.kitchen_water === "true") {
+                alerts.push(`⚠️ Water leak in kitchen`);
+                activeAlerts.add('kitchen_water');
+            }
+            if (data.garage_air_co && parseInt(data.garage_air_co) > 25) {
+                alerts.push(`⚠️ High CO levels (${data.garage_air_co}ppm)`);
+                activeAlerts.add('co');
+            }
+            if (data.bathroom_water && data.bathroom_water === "true") {
+                alerts.push(`⚠️ Water leak in bathroom`);
+                activeAlerts.add('bathroom_water');
+            }
+
+            // Remove resolved alerts
+            document.querySelectorAll('.alert-item').forEach(item => {
+                if (!activeAlerts.has(item.dataset.alertType)) {
+                    item.remove();
+                }
+            });
+
+            if (alerts.length > 0) {
+                globalAlert.textContent = alerts[0];
+                globalAlert.style.display = 'block';
+                
+                alerts.forEach(alert => {
+                    const alertType = getAlertType(alert);
+                    if (!document.querySelector(`.alert-item[data-alert-type="${alertType}"]`)) {
+                        const alertItem = document.createElement('div');
+                        alertItem.className = 'alert-item';
+                        alertItem.dataset.alertType = alertType;
+                        alertItem.innerHTML = `
+                            <div class="alert-title">
+                                <i>⚠️</i>
+                                <span>Emergency Alert</span>
+                            </div>
+                            <div class="alert-message">${alert}</div>
+                        `;
+                        emergencyAlerts.appendChild(alertItem);
+                        
+                        setTimeout(() => {
+                            if (alertItem.parentNode === emergencyAlerts) {
+                                alertItem.remove();
+                            }
+                        }, 10000);
+                    }
+                });
+            }
+            
+            function getAlertType(alertText) {
+                if (alertText.includes('Gas')) return 'gas';
+                if (alertText.includes('Smoke')) return 'smoke';
+                if (alertText.includes('kitchen')) return 'kitchen_water';
+                if (alertText.includes('CO')) return 'co';
+                if (alertText.includes('bathroom')) return 'bathroom_water';
+                return 'other';
+            }
+        }
+
+        function updateDevice(deviceId, value, isStatus = false) {
+            const element = document.getElementById(deviceId);
+            if (!element) return;
+            
+            const valueElement = element.querySelector('.device-value');
+            if (!valueElement) return;
+            
+            if (isStatus) {
+                valueElement.textContent = value;
+                valueElement.className = 'device-value';
+                
+                if (typeof value === 'string') {
+                    const status = value.toLowerCase();
+                    if (status.includes('on') || status.includes('open') || status.includes('active')) {
+                        valueElement.classList.add('on');
+                    } else if (status.includes('off') || status.includes('closed') || status.includes('inactive')) {
+                        valueElement.classList.add('off');
+                    } else if (status.includes('warning')) {
+                        valueElement.classList.add('warning');
+                    } else if (status.includes('danger') || status.includes('leak')) {
+                        valueElement.classList.add('danger');
+                    }
+                }
+            } else {
+                valueElement.textContent = value;
+            }
+            
+            // Update room status if device is a sensor
+            if (deviceId.includes('temp') || deviceId.includes('motion') || deviceId.includes('humidity')) {
+                const roomSection = element.closest('.room-card');
+                if (roomSection) {
+                    const roomStatus = roomSection.querySelector('.room-status');
+                    if (roomStatus) {
+                        roomStatus.textContent = 'Active';
+                        roomStatus.classList.add('active');
+                    }
+                }
+            }
+        }
+
+        function updateDeviceValues(data) {
+            for (const [key, value] of Object.entries(data)) {
+                switch (key) {
+                    // Living Room
+                    case 'living_room_temp':
+                        updateDevice('living-room-temp', `${value}°C`);
+                        break;
+                    case 'living_room_light':
+                        updateDevice('living-room-light', `${value} lux`);
+                        break;
+                    case 'living_room_motion':
+                        updateDevice('living-room-motion', value ? 'Motion' : 'No motion', true);
+                        break;
+                    case 'living_room_co2':
+                        updateDevice('living-room-co2', `${value} ppm`);
+                        break;
+                    case 'living_room_lights':
+                        updateDevice('living-room-lights', value ? 'On' : 'Off', true);
+                        break;
+                    case 'living_room_blinds':
+                        updateDevice('living-room-blinds', value ? 'Open' : 'Closed', true);
+                        break;
+                    case 'living_room_ac':
+                        updateDevice('living-room-ac', `${value}°C`);
+                        break;
+                    case 'living_room_tv':
+                        updateDevice('living-room-tv', value ? 'On' : 'Off', true);
+                        break;
+                    case 'living_room_purifier':
+                        updateDevice('living-room-purifier', value ? 'On' : 'Off', true);
+                        break;
+                        
+                    // Kitchen
+                    case 'kitchen_temp':
+                        updateDevice('kitchen-temp', `${value}°C`);
+                        break;
+                    case 'kitchen_gas':
+                        updateDevice('kitchen-gas', `${value} ppm`);
+                        break;
+                    case 'kitchen_water':
+                        updateDevice('kitchen-water', value === "true" ? 'Leak!' : 'Dry', true);
+                        break;
+                    case 'kitchen_smoke':
+                        updateDevice('kitchen-smoke', `${value}%`);
+                        break;
+                    case 'kitchen_motion':
+                        updateDevice('kitchen-motion', value ? 'Motion' : 'No motion', true);
+                        break;
+                    case 'kitchen_lights':
+                        updateDevice('kitchen-lights', value ? 'On' : 'Off', true);
+                        break;
+                    case 'kitchen_fan':
+                        updateDevice('kitchen-fan', value ? 'On' : 'Off', true);
+                        break;
+                    case 'kitchen_water_valve':
+                        updateDevice('kitchen-water-valve', value ? 'Open' : 'Closed', true);
+                        break;
+                        
+                    // Bedroom
+                    case 'bedroom_temp':
+                        updateDevice('bedroom-temp', `${value}°C`);
+                        break;
+                    case 'bedroom_humidity':
+                        updateDevice('bedroom-humidity', `${value}%`);
+                        break;
+                    case 'bedroom_light':
+                        updateDevice('bedroom-light', `${value} lux`);
+                        break;
+                    case 'bedroom_motion':
+                        updateDevice('bedroom-motion', value ? 'Motion' : 'No motion', true);
+                        break;
+                    case 'bedroom_bed':
+                        updateDevice('bedroom-bed', value === "true" ? 'Occupied' : 'Vacant', true);
+                        break;
+                    case 'bedroom_lights':
+                        updateDevice('bedroom-lights', value ? 'On' : 'Off', true);
+                        break;
+                    case 'bedroom_thermostat':
+                        updateDevice('bedroom-thermostat', `${value}°C`);
+                        break;
+                    case 'bedroom_blinds':
+                        updateDevice('bedroom-blinds', value ? 'Open' : 'Closed', true);
+                        break;
+                    case 'bedroom_noise_machine':
+                        updateDevice('bedroom-noise-machine', value ? 'On' : 'Off', true);
+                        break;
+                        
+                    // Bathroom
+                    case 'bathroom_humidity':
+                        updateDevice('bathroom-humidity', `${value}%`);
+                        break;
+                    case 'bathroom_motion':
+                        updateDevice('bathroom-motion', value ? 'Motion' : 'No motion', true);
+                        break;
+                    case 'bathroom_water':
+                        updateDevice('bathroom-water', value === "true" ? 'Leak!' : 'Dry', true);
+                        break;
+                    case 'bathroom_lights':
+                        updateDevice('bathroom-lights', value ? 'On' : 'Off', true);
+                        break;
+                    case 'bathroom_fan':
+                        updateDevice('bathroom-fan', value ? 'On' : 'Off', true);
+                        break;
+                    case 'bathroom_floor_heat':
+                        updateDevice('bathroom-floor-heat', `${value}°C`);
+                        break;
+                    case 'bathroom_mirror':
+                        updateDevice('bathroom-mirror', value ? 'On' : 'Off', true);
+                        break;
+                        
+                    // Hallway
+                    case 'hallway_temp':
+                        updateDevice('hallway-temp', `${value}°C`);
+                        break;
+                    case 'hallway_motion':
+                        updateDevice('hallway-motion', value ? 'Motion' : 'No motion', true);
+                        break;
+                    case 'hallway_door':
+                        updateDevice('hallway-door', value ? 'Open' : 'Closed', true);
+                        break;
+                    case 'hallway_light':
+                        updateDevice('hallway-light', `${value} lux`);
+                        break;
+                    case 'hallway_lights':
+                        updateDevice('hallway-lights', value ? 'On' : 'Off', true);
+                        break;
+                    case 'hallway_lock':
+                        updateDevice('hallway-lock', value ? 'Unlocked' : 'Locked', true);
+                        break;
+                    case 'hallway_siren':
+                        updateDevice('hallway-siren', value ? 'On' : 'Off', true);
+                        break;
+                        
+                    // Office
+                    case 'office_temp':
+                        updateDevice('office-temp', `${value}°C`);
+                        break;
+                    case 'office_humidity':
+                        updateDevice('office-humidity', `${value}%`);
+                        break;
+                    case 'office_light':
+                        updateDevice('office-light', `${value} lux`);
+                        break;
+                    case 'office_motion':
+                        updateDevice('office-motion', value ? 'Occupied' : 'Vacant', true);
+                        break;
+                    case 'office_desk':
+                        updateDevice('office-desk', value ? 'Occupied' : 'Vacant', true);
+                        break;
+                    case 'office_co2':
+                        updateDevice('office-co2', `${value} ppm`);
+                        break;
+                    case 'office_noise':
+                        updateDevice('office-noise', `${value} dB`);
+                        break;
+                    case 'office_lights':
+                        updateDevice('office-lights', value ? 'On' : 'Off', true);
+                        break;
+                    case 'office_blinds':
+                        updateDevice('office-blinds', value ? 'Open' : 'Closed', true);
+                        break;
+                    case 'office_hvac':
+                        updateDevice('office-hvac', value ? 'On' : 'Off', true);
+                        break;
+                    case 'office_noise_machine':
+                        updateDevice('office-noise-machine', value ? 'On' : 'Off', true);
+                        break;
+                    case 'office_monitor':
+                        updateDevice('office-monitor', value ? 'On' : 'Off', true);
+                        break;
+                    case 'office_air':
+                        updateDevice('office-air', value ? 'On' : 'Off', true);
+                        break;
+                        
+                    // Garage
+                    case 'garage_temp':
+                        updateDevice('garage-temp', `${value}°C`);
+                        break;
+                    case 'garage_motion':
+                        updateDevice('garage-motion', value ? 'Motion' : 'No motion', true);
+                        break;
+                    case 'garage_door':
+                        updateDevice('garage-door', value ? 'Open' : 'Closed', true);
+                        break;
+                    case 'garage_car':
+                        updateDevice('garage-car', value ? 'Present' : 'Absent', true);
+                        break;
+                    case 'garage_air_co':
+                        updateDevice('garage-air-co', `${value} ppm`);
+                        break;
+                    case 'garage_air_voc':
+                        updateDevice('garage-air-voc', `${value} ppb`);
+                        break;
+                    case 'garage_opener':
+                        updateDevice('garage-opener', value ? 'On' : 'Off', true);
+                        break;
+                    case 'garage_lights':
+                        updateDevice('garage-lights', value ? 'On' : 'Off', true);
+                        break;
+                    case 'garage_fan':
+                        updateDevice('garage-fan', value ? 'On' : 'Off', true);
+                        break;
+                    case 'garage_charger':
+                        updateDevice('garage-charger', value ? 'On' : 'Off', true);
+                        break;
+                    case 'garage_exhaust':
+                        updateDevice('garage-exhaust', value ? 'On' : 'Off', true);
+                        break;
+                        
+                    // Garden
+                    case 'garden_moisture':
+                        updateDevice('garden-moisture', `${value}%`);
+                        break;
+                    case 'garden_rain':
+                        updateDevice('garden-rain', value ? 'Raining' : 'Dry', true);
+                        break;
+                    case 'garden_motion':
+                        updateDevice('garden-motion', value ? 'Motion' : 'No motion', true);
+                        break;
+                    case 'garden_light':
+                        updateDevice('garden-light', `${value} lux`);
+                        break;
+                    case 'garden_weather':
+                        updateDevice('garden-weather', value);
+                        break;
+                    case 'garden_weather_temp':
+                        updateDevice('garden-weather-temp', `${value}°C`);
+                        break;
+                    case 'garden_weather_humidity':
+                        updateDevice('garden-weather-humidity', `${value}%`);
+                        break;
+                    case 'garden_sprinkler':
+                        updateDevice('garden-sprinkler', value ? 'On' : 'Off', true);
+                        break;
+                    case 'garden_lights':
+                        updateDevice('garden-lights', value ? 'On' : 'Off', true);
+                        break;
+                    case 'garden_valve':
+                        updateDevice('garden-valve', value ? 'Open' : 'Closed', true);
+                        break;
+                    case 'garden_path_lights':
+                        updateDevice('garden-path-lights', value ? 'On' : 'Off', true);
+                        break;
+                }
+            }
+        }
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            checkEmergencies(data);
+            updateDeviceValues(data);
+        };
+
+        ws.onclose = function() {
+            console.log("Connection closed. Reconnecting...");
+            setTimeout(() => window.location.reload(), 5000);
+        };
+
+        ws.onerror = function(error) {
+            console.error("WebSocket error:", error);
+        };
+    </script>
+</body>
+</html>
+"""
+
+@app.get("/")
+async def get():
+    return HTMLResponse(html_template)
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    active_connections.append(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        active_connections.remove(websocket)
+
+async def broadcast_data(data: dict):
+    for connection in active_connections:
+        try:
+            await connection.send_json(data)
+        except:
+            active_connections.remove(connection)
+
+@app.post("/broadcast")
+async def receive_broadcast(data: dict):
+    await broadcast_data(data)
+    return {"status": "success"}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8001)

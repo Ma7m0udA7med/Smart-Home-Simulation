@@ -1,0 +1,44 @@
+# living_room_ac.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+# Current AC state
+current_temp = 24.0  # Default temperature
+current_mode = "off"  # off/cool/heat/fan
+
+def on_message(client, userdata, msg):
+    global current_temp, current_mode
+    
+    command = msg.payload.decode().lower()
+    
+    if command.startswith("cool:"):
+        _, temp = command.split(":")
+        current_temp = float(temp)
+        current_mode = "cool"
+        print(f"❄️ AC cooling to {current_temp}°C")
+        
+    elif command.startswith("heat:"):
+        _, temp = command.split(":")
+        current_temp = float(temp)
+        current_mode = "heat"
+        print(f"🔥 AC heating to {current_temp}°C")
+        
+    elif command == "fan":
+        current_mode = "fan"
+        print("🌬️ AC fan mode activated")
+        
+    elif command == "off":
+        current_mode = "off"
+        print("⭕ AC turned OFF")
+        
+    else:
+        print(f"Invalid AC command: {command}")
+
+client = mqtt.Client("LivingRoom_AC")
+client.connect(BROKER, PORT)
+client.subscribe("living_room/ac")
+client.on_message = on_message
+print("AC ready. Waiting for commands...")
+client.loop_forever()

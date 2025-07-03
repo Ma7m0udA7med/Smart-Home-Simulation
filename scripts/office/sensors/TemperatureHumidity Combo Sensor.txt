@@ -1,0 +1,18 @@
+# office_climate.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Office_Climate")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    temp = round(random.uniform(18.0, 30.0), 1)  # Wide office range
+    humid = random.randint(30, 70)
+    client.publish("office/temperature", temp)
+    client.publish("office/humidity", humid)
+    print(f"🌡️ {temp}°C 💧 {humid}%")
+    time.sleep(60)

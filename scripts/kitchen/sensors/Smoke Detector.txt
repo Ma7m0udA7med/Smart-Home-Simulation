@@ -1,0 +1,17 @@
+# kitchen_smoke.py
+import paho.mqtt.client as mqtt
+import random
+import time
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+client = mqtt.Client("Kitchen_Smoke")
+client.connect("1.0.0.2", 1883)
+
+while True:
+    smoke_level = random.randint(0, 100)  # 0-100% smoke density
+    client.publish("kitchen/smoke", smoke_level)
+    if smoke_level > 30:  # Emergency threshold
+        print(f"🚨 SMOKE DETECTED! Level: {smoke_level}%")
+    time.sleep(20)

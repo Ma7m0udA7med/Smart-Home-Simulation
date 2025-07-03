@@ -1,0 +1,21 @@
+# office_noise_machine.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+SOUNDS = {
+    "focus": "Brown noise",
+    "calm": "Rain sounds", 
+    "mask": "Cafe ambiance"
+}
+
+def on_message(client, userdata, msg):
+    mode = msg.payload.decode()
+    print(f"🔊 {SOUNDS.get(mode, 'Off')}")
+
+client = mqtt.Client("Office_NoiseMachine")
+client.connect("1.0.0.2", 1883)
+client.subscribe("office/noise_machine")
+client.on_message = on_message
+client.loop_forever()

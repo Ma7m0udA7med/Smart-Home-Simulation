@@ -1,0 +1,48 @@
+import paho.mqtt.client as mqtt
+import time
+
+BROKER = "1.0.0.2"  # Your MQTT broker IP
+
+# Actuator topics
+ACTUATOR_TOPICS = {
+    "light": "iot/actuator/light",
+    "buzzer": "iot/actuator/buzzer",
+    "fan": "iot/actuator/fan",
+    "door_lock": "iot/actuator/door_lock",
+    "thermostat": "iot/actuator/thermostat",
+    "water_valve": "iot/actuator/water_valve",
+    "garage_door": "iot/actuator/garage_door",
+    "curtains": "iot/actuator/curtains"
+}
+
+# Store actuator data
+actuator_data = {key: "Unknown" for key in ACTUATOR_TOPICS.keys()}  # Default to "Unknown"
+
+# MQTT message handler
+def on_message(client, userdata, message):
+    actuator_name = next((key for key, topic in ACTUATOR_TOPICS.items() if topic == message.topic), "Unknown Actuator")
+    actuator_data[actuator_name] = message.payload.decode()
+
+# Function to print actuator statuses every 5 seconds
+def print_status():
+    while True:
+        print("\nActuator Status Updates:")
+        for actuator, status in actuator_data.items():
+            print(f"{actuator}: {status}")
+        print("\n" + "-" * 50 + "\n")  # Separator between updates
+        time.sleep(5)  # Wait 5 seconds before printing again
+
+# MQTT setup
+client = mqtt.Client()
+client.on_message = on_message
+client.connect(BROKER, 1883, 60)
+
+# Subscribe to all actuator topics
+for topic in ACTUATOR_TOPICS.values():
+    client.subscribe(topic)
+
+print("Listening to actuator statuses...")
+import threading
+threading.Thread(target=print_status, daemon=True).start()  # Run printing in the background
+
+client.loop_forever()

@@ -1,0 +1,21 @@
+Space Heater/Cooler
+# office_hvac.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):
+    cmd = msg.payload.decode()
+    if cmd.startswith("heat:"):
+        print(f"🔥 Heating to {cmd.split(':')[1]}°C")
+    elif cmd.startswith("cool:"):
+        print(f"❄️ Cooling to {cmd.split(':')[1]}°C")
+    elif cmd == "off":
+        print("🛑 HVAC off")
+
+client = mqtt.Client("Office_HVAC")
+client.connect("1.0.0.2", 1883)
+client.subscribe("office/hvac")
+client.on_message = on_message
+client.loop_forever()

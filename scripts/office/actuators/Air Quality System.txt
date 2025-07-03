@@ -1,0 +1,20 @@
+Air Quality System
+# office_air.py
+import paho.mqtt.client as mqtt
+
+BROKER = "1.0.0.2"
+PORT = 1883
+
+def on_message(client, userdata, msg):	
+    cmd = msg.payload.decode()
+    if cmd == "ventilate":
+        print("💨 Fresh air mode activated")
+    elif cmd == "purify":
+        print("🌀 Air purification at speed 3")
+
+client = mqtt.Client("Office_Air")
+client.connect("1.0.0.2", 1883)
+client.subscribe("office/air")
+client.on_message = on_message
+print("Air system ready")
+client.loop_forever()
